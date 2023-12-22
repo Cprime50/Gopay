@@ -1,0 +1,4 @@
+github.com/gin-gonic/gin
+github.com/cloudinary/cloudinary-go
+github.com/joho/godotenv
+github.com/go-playground/validator/v10

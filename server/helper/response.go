@@ -1,0 +1,7 @@
+package helper
+
+type MediaResp struct {
+	StatusCode int                    `json:"statusCode"`
+	Message    string                 `json:"message"`
+	Data       map[string]interface{} `json:"data"`
+}
