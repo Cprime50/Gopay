@@ -2,8 +2,12 @@ package models
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log"
 	"time"
 
+	"github.com/Cprime50/Gopay/helper"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -28,61 +32,59 @@ type Role struct {
 	UpdatedAt   time.Time
 }
 
-// create role
-func (db *RoleRepository) CreateRole(ctx context.Context, role *Role) error {
-	if err := db.DB.WithContext(ctx).Create(&role).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 // Get one role by id
 func (db *RoleRepository) GetRoleById(ctx context.Context, id uint) (*Role, error) {
 	var role *Role
 	if err := db.DB.WithContext(ctx).Where("id = ?", id).First(&role).Error; err != nil {
-		return nil, err
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
+				fmt.Printf("role with ID %d not found\n", role.ID)
+				return nil, helper.NewNotFound("id", fmt.Sprintf("%d", role.ID))
+			}
+		}
+		log.Println("Error quering db", err)
+		return nil, helper.NewInternal()
 	}
 	return role, nil
 }
 
 // Gets all roles
-func (db *RoleRepository) GetAllRoles() ([]*Role, error) {
+func (db *RoleRepository) GetAllRoles(ctx context.Context) ([]*Role, error) {
 	var roles []*Role
-	if err := db.DB.WithContext(ctx).Find(&role).Error; err != nil {
-		return nil, err
+	if err := db.DB.WithContext(ctx).Find(&roles).Error; err != nil {
+		log.Println("Error quering db", err)
+		return nil, helper.NewInternal()
 	}
 	return roles, nil
 }
 
-// Update role
-func (db *RoleRepository) UpdateRole(role *Role) error {
-	if err := db.DB.WithContext(ctx).Save(&role).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// Delete role
-func (db *RoleRepository) DeleteRole(id uint) error {
-	if err := db.DB.WithContext(ctx).Where("id = ?", id).Delete(&role).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 // Assign roles to account
-func (db *RoleRepository) AssignRole(accountID uuid.UUID, roleID uint) error {
+func (db *RoleRepository) AssignRole(ctx context.Context, accountID uuid.UUID, roleID uint) error {
 	if err := db.DB.WithContext(ctx).Model(&Account{}).Where("id = ?", accountID).Update("role", roleID).Error; err != nil {
-		return err
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
+				fmt.Printf("account with ID %s not found\n", accountID)
+				return helper.NewNotFound("id", accountID.String())
+			}
+		}
+		log.Println("Error quering db", err)
+		return helper.NewInternal()
 	}
 	return nil
 }
 
-// Get account by role
-func (db *RoleRepository) GetAccntByRole(roleID uint) (*Account, error) {
-	var account *Account
-	if err := db.DB.WithContext(ctx).Where("role_id = ?", roleID).Find(&account).Error; err != nil {
-		return err
+// Get accounts by role
+func (db *RoleRepository) GetAccntByRole(ctx context.Context, roleID uint) (*[]Account, error) {
+	var accounts *[]Account
+	if err := db.DB.WithContext(ctx).Where("role_id = ?", roleID).Find(&accounts).Error; err != nil {
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
+				fmt.Printf("role with ID %d not found\n", roleID)
+				return nil, helper.NewNotFound("id", fmt.Sprintf("%d", roleID))
+			}
+		}
+		log.Println("Error quering db", err)
+		return nil, helper.NewInternal()
 	}
-	return nil
+	return accounts, nil
 }

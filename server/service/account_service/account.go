@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"context"
@@ -33,29 +33,13 @@ func NewAccountService(c *AccountConfig) *AccountService {
 // GenerateAccountNumber generates a unique 10-digit account number
 func (s *AccountService) Signup(ctx context.Context, account *models.Account) error {
 	//hash password
-	hashedPassword, err := hashPassword(account.Password)
+	hashedPassword, err := models.HashPassword(account.Password)
 	if err != nil {
 		log.Printf("Unable to hashpassword for account: %v, due to: %v\n", account.Email, err)
 		return helper.NewInternal()
 	}
 	account.Password = hashedPassword
 
-	// // Generate unique accountNumber
-	// accountNumber, err := GenerateAccountNumber()
-	// if err != nil {
-	// 	log.Printf("Unable to hashpassword for account: %v, due to: %v\n", account.Email, err)
-	// 	return errors.NewInternal()
-	// 	return err
-	// }
-	// _,err := db.GetAccountByAccountNum()
-	// if err == nil {
-	// 	log.Printf("Could not create an account with email: %v. Reason: %v\n", account.Email, err.Code.Name())
-	// 	return errors.NewConflict("email", account.Email)
-	// 	// Log any other errors that may occur
-	// } else if !errors.Is(err, gorm.ErrRecordNotFound) {
-	// 	log.Printf("Could not create an account with email: %v. Reason: %v\n", account.Email, err)
-	// 	return errors.NewInternal()
-	// }
 	if err := s.AccountRepository.CreateAccount(ctx, account); err != nil {
 		log.Printf("Error creating account: %v", err)
 		return helper.NewInternal()

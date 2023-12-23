@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/Cprime50/Gopay/helper"
-	"github.com/Cprime50/Gopay/services/password"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -45,21 +44,29 @@ type Account struct {
 	IsActive      bool      `gorm:"type:boolean;not null"`
 }
 
-// Create new acount in DB
+// CreateAccount creates a new account in the database
 func (db *AccountRepository) CreateAccount(ctx context.Context, account *Account) error {
-	var gen *AccountNumberGenerator
-	// Check if an account for the given email already exists
+	// Check if an account with the given email already exists
 	_, err := db.GetAccountByEmail(ctx, account.Email)
-	if err == nil {
-		log.Printf("Could not create an account with email: %v. Reason: %v\n", account.Email, err.Code.Name())
+	switch {
+	case err == nil:
+		log.Printf("Could not create an account with email: %v. Reason: Account already exists\n", account.Email)
 		return helper.NewConflict("email", account.Email)
-		// Log any other errors that may occur
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Printf("Could not create an account with email: %v. Reason: %v\n", account.Email, err)
+
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		break
+
+	default:
+		log.Printf("Error checking account existence: %v\n", err)
 		return helper.NewInternal()
 	}
+
+	// Generate account number
+	var gen *AccountNumberGenerator
 	accountNumber := gen.GenerateAccountNumber(ctx, db)
-	account = &Account{
+
+	// Create the new account
+	newAccount := &Account{
 		Email:         account.Email,
 		AccountNumber: accountNumber,
 		FirstName:     account.FirstName,
@@ -70,9 +77,11 @@ func (db *AccountRepository) CreateAccount(ctx context.Context, account *Account
 		IsActive:      false,
 	}
 
-	if err := db.DB.Create(&account).Error; err != nil {
-		return err
+	if err := db.DB.Create(newAccount).Error; err != nil {
+		log.Printf("Error creating account: %v\n", err)
+		return helper.NewInternal()
 	}
+
 	return nil
 }
 
@@ -92,30 +101,47 @@ func (gen *AccountNumberGenerator) GenerateAccountNumber(ctx context.Context, db
 	}
 }
 
-// Gets a users account from db based on account number
-func (db *AccountRepository) GetAccountByAccountNum(ctx context.Context, account_number int64) (*Account, error) {
+// GetAccountByAccountNum gets a user's account from the database based on the account number
+func (db *AccountRepository) GetAccountByAccountNum(ctx context.Context, accountNumber int64) (*Account, error) {
 	var account *Account
-	err := db.DB.WithContext(ctx).Where("account_number = ?", account_number).First(&account).Error
+	err := db.DB.WithContext(ctx).Where("account_number = ?", accountNumber).First(&account).Error
 	if err != nil {
-		return &Account{}, helper.NewNotFound("account_number", account_number.String())
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			fmt.Printf("account with ID %d not found", account.ID)
+			return nil, helper.NewNotFound("account_number", fmt.Sprintf("%d", accountNumber))
+		}
+		log.Println("Error querying account:", err)
+		return nil, helper.NewInternal()
 	}
 	return account, nil
 }
 
+// GetAccountByEmail gets a user's account from the database based on the email
 func (db *AccountRepository) GetAccountByEmail(ctx context.Context, email string) (*Account, error) {
 	var account *Account
 	err := db.DB.WithContext(ctx).Where("email = ?", email).First(&account).Error
 	if err != nil {
-		return &Account{}, helper.NewNotFound("email", email)
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			fmt.Printf("account with email %s not found", account.Email)
+			return nil, helper.NewNotFound("email", account.Email)
+		}
+		log.Println("Error querying account:", err)
+		return nil, helper.NewInternal()
 	}
 	return account, nil
 }
 
+// GetAccountByID gets a user's account from the database based on the ID
 func (db *AccountRepository) GetAccountByID(ctx context.Context, id uuid.UUID) (*Account, error) {
 	var account *Account
 	err := db.DB.WithContext(ctx).Where("id = ?", id).First(&account).Error
 	if err != nil {
-		return &Account{}, helper.NewNotFound("id", id.String())
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			fmt.Printf("account with ID %s not found", account.ID)
+			return nil, helper.NewNotFound("id", account.ID.String())
+		}
+		log.Println("Error querying account in db:", err)
+		return nil, helper.NewInternal()
 	}
 	return account, nil
 }
@@ -124,10 +150,10 @@ func (db *AccountRepository) GetAccountByID(ctx context.Context, id uuid.UUID) (
 func (db *AccountRepository) UpdateAccount(ctx context.Context, account *Account) error {
 	// Update only the fields that are filled in the account
 	// Omit sensitive fields like password, balance, and role
-	err := db.DB.WithContext(ctx).Omit("password", "balance", "role").Updates(account).Error
+	err := db.DB.WithContext(ctx).Omit("password", "balance", "role").Updates(&account).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Errorf("account with ID %s not found", account.ID)
+			fmt.Printf("account with ID %s not found", account.ID)
 			return helper.NewNotFound("id", account.ID.String())
 		}
 		log.Println("Error querying account:", err)
@@ -141,7 +167,7 @@ func (db *AccountRepository) ChangeUserStatus(ctx context.Context, account *Acco
 	_, err := db.GetAccountByID(ctx, account.ID)
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Errorf("account with ID %s not found", account.ID)
+			fmt.Printf("account with ID %s not found", account.ID)
 			return helper.NewNotFound("id", account.ID.String())
 		}
 		log.Println("Error querying account:", err)
@@ -156,29 +182,30 @@ func (db *AccountRepository) ChangeUserStatus(ctx context.Context, account *Acco
 	// Update only the specified columns in the database
 	if err := db.DB.WithContext(ctx).Model(&account).Updates(updateColumns).Error; err != nil {
 		log.Println("Error updating user:", err)
-		return err
+		return helper.NewInternal()
 	}
 	return nil
 }
 
-// Update password
+// Resetpassword updates the users password
 func (db *AccountRepository) ResetPassword(ctx context.Context, account *Account) error {
 	// Hash the new password
-	hashedPassword, err := password.HashPassword(account.Password)
+	hashedPassword, err := HashPassword(account.Password)
 	if err != nil {
-		return err
+		fmt.Println("Error hashing password", err)
+		return helper.NewInternal()
 	}
 
 	// Update user password where username, email match and the user is active
 	err = db.DB.WithContext(ctx).Model(&Account{}).
 		Where("email = ?", account.Email).
-		Updates("password", hashedPassword).Error
+		Updates(map[string]interface{}{"password": hashedPassword}).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Errorf("account with email %s not found", account.Email)
+			fmt.Printf("account with email %s not found\n", account.Email)
 			return helper.NewNotFound("email", account.Email)
 		}
-		log.Println("Error querying account:", err)
+		log.Println("Error reseting password", err)
 		return helper.NewInternal()
 	}
 	return nil
@@ -194,13 +221,13 @@ func (db *AccountRepository) UpdateImgByFile(ctx context.Context, id uuid.UUID, 
 	}
 	err = db.DB.WithContext(ctx).Model(&Account{}).
 		Where("id = ?", id).
-		Updates("image", imageURL).Error
+		Updates(map[string]interface{}{"image": imageURL}).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Errorf("account with ID %s not found", id)
+			fmt.Printf("account with ID %s not found", id)
 			return helper.NewNotFound("id", id.String())
 		}
-		log.Println("Error querying account:", err)
+		log.Println("Error querying account to update image:", err)
 		return helper.NewInternal()
 	}
 	return nil
@@ -216,32 +243,40 @@ func (db *AccountRepository) UpdateImgByUrl(ctx context.Context, id uuid.UUID, i
 	}
 	err = db.DB.WithContext(ctx).Model(&Account{}).
 		Where("id = ?", id).
-		Updates("image", imageURL).Error
+		Updates(map[string]interface{}{"image": imageURL}).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Errorf("account with ID %s not found", id)
+			fmt.Printf("account with ID %s not found", id)
 			return helper.NewNotFound("id", id.String())
 		}
-		log.Println("Error querying account:", err)
+		log.Println("Error querying account to updating image:", err)
 		return helper.NewInternal()
 	}
 	return nil
 }
 
-// Get all account
-func (db *AccountRepository) GetAllUsers(ctx context.Context) ([]*Account, error) {
+// GetAllAccount gets a list of all account in db
+func (db *AccountRepository) GetAllAccount(ctx context.Context) ([]*Account, error) {
 	var accounts []*Account
 	if err := db.DB.WithContext(ctx).Omit("password").Find(&accounts).Error; err != nil {
-		return nil, err
+		log.Println("Error getting users accounts:", err)
+		return nil, helper.NewInternal()
 	}
 	return accounts, nil
 }
 
-// Delete User
+// DeleteAccount deletes an account based on the provided ID
 func (db *AccountRepository) DeleteAccount(ctx context.Context, id uuid.UUID) error {
 	var account *Account
 	if err := db.DB.WithContext(ctx).Where("id = ?", id).Delete(&account).Error; err != nil {
-		return err
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
+				fmt.Printf("account with ID %s not found", account.ID)
+				return helper.NewNotFound("id", account.ID.String())
+			}
+			log.Println("Error deleting account:", err)
+			return helper.NewInternal()
+		}
 	}
 	return nil
 }
