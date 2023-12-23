@@ -20,9 +20,9 @@ func hashPassword(password string) (string, error) {
 	return hashedPw, nil
 }
 
-// confirm user password whether it matches that in database
-func comparePassword(password string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+// confirm user password whether it matches
+func comparePassword(password string, comfPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword([]byte(password), []byte(comfPassword))
 	// we can get two types of error here
 	if err != nil {
 		switch {

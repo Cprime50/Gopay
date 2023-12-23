@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"context"
-
+	"github.com/Cprime50/Gopay/helper"
 	"github.com/go-redis/redis/v8"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -19,7 +19,7 @@ type dataSources struct {
 }
 
 // InitDS establishes connections to fields in dataSources
-func initDS() (*dataSources, error) {
+func (ds *dataSources) initDS(ctx context.Context) (*dataSources, error) {
 	log.Printf("Initializing data sources\n")
 
 	dsn := os.Getenv("DATABASE_URL")
@@ -30,7 +30,8 @@ func initDS() (*dataSources, error) {
 	}})
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to Mysql database: %w", err)
+		log.Fatalf("Failed to connect to Mysql database: %s", err)
+		return nil, helper.NewInternal()
 	}
 
 	//Enable pooling
@@ -42,7 +43,7 @@ func initDS() (*dataSources, error) {
 	sqlDB.SetMaxOpenConns(100)
 
 	// Verify database connection is working
-	if err := db.Ping(); err != nil {
+	if err := ds.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("error connecting to db: %w", err)
 	}
 
@@ -72,16 +73,34 @@ func initDS() (*dataSources, error) {
 
 // close to be used in graceful server shutdown
 func (ds *dataSources) close() error {
-	sqlDB, err := ds.DB()
+	sqlDB, err := ds.DB.DB()
 	if err != nil {
-		fmt.Error(err)
+		log.Fatal(err)
+		return helper.NewInternal()
 	}
 	if err := sqlDB.Close(); err != nil {
-		return fmt.Errorf("error closing Mysql: %w", err)
+		log.Fatal("error closing Mysql: %w", err)
+		return helper.NewInternal()
 	}
 
 	if err := ds.RedisClient.Close(); err != nil {
-		return fmt.Errorf("error closing Redis Client: %w", err)
+		log.Fatal("error closing Redis Client: %w", err)
+		return helper.NewInternal()
+	}
+
+	return nil
+}
+
+// Ping DB
+func (ds *dataSources) Ping(ctx context.Context) error {
+	Db, err := ds.DB.DB()
+	if err != nil {
+		return err
+	}
+
+	if err := Db.PingContext(ctx); err != nil {
+		log.Fatal("Error Pinging DB:", err)
+		return helper.NewInternal()
 	}
 
 	return nil
