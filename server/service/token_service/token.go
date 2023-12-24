@@ -7,26 +7,27 @@ import (
 	"time"
 
 	models "github.com/Cprime50/Gopay/models/account"
-	"github.com/dgrijalva/jwt-go"
+	//"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 // idTokenCustomClaims holds structure of jwt claims of idToken
 type idTokenCustomClaims struct {
 	Account *models.Account `json:"account"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
-// generateIDToken generates an IDToken which is a jwt with myCustomClaims
-// Could call this GenerateIDTokenString, but the signature makes this fairly clear
+// generateJWT generates an IDToken which is a jwt with myCustomClaims
+// Could call this GenerateJWT, but the signature makes this fairly clear
 func generateJWT(account *models.Account, key *rsa.PrivateKey, exp int64) (string, error) {
-	//tokenTTL, _ := strconv.ParseInt(os.Getenv("TOKEN_TTL"), 10, 64)
-	issuedAt := time.Now().Unix()
-	expiresAt := issuedAt + exp
+	//tokenTTL, _ := strconv.Atoi(os.Getenv("TOKEN_TTL"))
+	issuedAt := jwt.NewNumericDate(time.Now().UTC())
+	expiresAt := jwt.NewNumericDate(issuedAt.Add(time.Hour * time.Duration(exp)))
 
 	claims := idTokenCustomClaims{
 		Account: account,
-		StandardClaims: jwt.StandardClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  issuedAt,
 			ExpiresAt: expiresAt,
 		},
@@ -56,14 +57,14 @@ type refreshTokenData struct {
 type refreshTokenCustomClaims struct {
 	AccountID uuid.UUID `json:"account_id"`
 	RoleID    uint      `json:"role_id"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 // generateRefreshToken creates a refresh token
 // The refresh token stores only the account's ID, role and a string
 func generateRefreshToken(account *models.Account, key string, exp int64) (*refreshTokenData, error) {
-	currentTime := time.Now()
-	tokenExp := currentTime.Add(time.Duration(exp) * time.Second)
+	issuedAt := jwt.NewNumericDate(time.Now().UTC())
+	expiresAt := jwt.NewNumericDate(issuedAt.Add(time.Hour * time.Duration(exp)))
 	tokenID, err := uuid.NewRandom() // v4 uuid in the google uuid lib
 
 	if err != nil {
@@ -74,10 +75,10 @@ func generateRefreshToken(account *models.Account, key string, exp int64) (*refr
 	claims := refreshTokenCustomClaims{
 		AccountID: account.ID,
 		RoleID:    account.RoleID,
-		StandardClaims: jwt.StandardClaims{
-			IssuedAt:  currentTime.Unix(),
-			ExpiresAt: tokenExp.Unix(),
-			Id:        tokenID.String(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  issuedAt,
+			ExpiresAt: expiresAt,
+			ID:        tokenID.String(),
 		},
 	}
 
@@ -92,7 +93,7 @@ func generateRefreshToken(account *models.Account, key string, exp int64) (*refr
 	return &refreshTokenData{
 		SignedString: signedString,
 		ID:           tokenID,
-		ExpiresIn:    tokenExp.Sub(currentTime),
+		ExpiresIn:    expiresAt.Sub(time.Now()),
 	}, nil
 }
 
