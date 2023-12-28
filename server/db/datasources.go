@@ -13,13 +13,13 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type dataSources struct {
+type DataSources struct {
 	DB          *gorm.DB
 	RedisClient *redis.Client
 }
 
 // InitDS establishes connections to fields in dataSources
-func (ds *dataSources) initDS(ctx context.Context) (*dataSources, error) {
+func (ds *DataSources) InitDS(ctx context.Context) (*DataSources, error) {
 	log.Printf("Initializing data sources\n")
 
 	dsn := os.Getenv("DATABASE_URL")
@@ -65,14 +65,14 @@ func (ds *dataSources) initDS(ctx context.Context) (*dataSources, error) {
 		return nil, fmt.Errorf("error connecting to redis: %w", err)
 	}
 
-	return &dataSources{
+	return &DataSources{
 		DB:          db,
 		RedisClient: rdb,
 	}, nil
 }
 
 // close to be used in graceful server shutdown
-func (ds *dataSources) close() error {
+func (ds *DataSources) Close() error {
 	sqlDB, err := ds.DB.DB()
 	if err != nil {
 		log.Fatal(err)
@@ -92,7 +92,7 @@ func (ds *dataSources) close() error {
 }
 
 // Ping DB
-func (ds *dataSources) Ping(ctx context.Context) error {
+func (ds *DataSources) Ping(ctx context.Context) error {
 	Db, err := ds.DB.DB()
 	if err != nil {
 		return err

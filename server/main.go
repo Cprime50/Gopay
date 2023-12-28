@@ -9,37 +9,45 @@ import (
 	"syscall"
 	"time"
 
+	db "github.com/Cprime50/Gopay/db"
+	"github.com/Cprime50/Gopay/migrations"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	//Load env file
-	loadEnv()
-
-	// start server
 	serveApp()
-
-	// TODO add dev settings and production settings
-	// environment := os.Getenv("ENV")
 
 }
 
-func loadEnv() {
+func serveApp() {
+	//Load env
 	err := godotenv.Load("./.env")
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}
 	log.Println(".env file loaded successfully")
-}
 
-func serveApp() {
+	// load database
+	dataSources := &db.DataSources{}
+	_, _err := dataSources.InitDS(context.Background())
+	if _err != nil {
+		log.Fatalf("Unable to initialize data sources: %v\n", err)
+	}
+
+	//run migrations
+	migrate := &migrations.Database{}
+	migrate.Migrate()
+
 	router := gin.Default()
 
 	srv := &http.Server{
-		Addr:    ":8082",
-		Handler: router,
+		Addr:         ":8082", // Good practice to set timeouts to avoid Slow-loris attacks.
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 60,
+		Handler:      router,
 	}
 
 	go func() {

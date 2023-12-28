@@ -1,10 +1,10 @@
 version: "3.8"
 services:
   mysql:
-    image: "mysql:alpine"
+    image: "mysql:latest"
     restart: always
     env_file:
-      - ./server/.env
+      - .env
     ports:
       - "3306:3306"
     expose:
@@ -13,7 +13,7 @@ services:
       - mysql:/var/lib/mysql/data
 
   redis:
-    image: "redis:alpine"
+    image: "redis:latest"
     ports:
       - "6379:6379"
     restart: always

@@ -41,7 +41,7 @@ type Account struct {
 	ImageUrl      string    `gorm:"image_url" json:"imageUrl"`
 	RoleID        uint      `gorm:"not null;DEFAULT:4" json:"role_id"`
 	Role          Role      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
-	IsActive      bool      `gorm:"type:boolean;not null"`
+	IsActive      bool      `gorm:"type:boolean"`
 }
 
 // CreateAccount creates a new account in the database
@@ -65,18 +65,10 @@ func (db *AccountRepository) CreateAccount(ctx context.Context, account *Account
 	var gen *AccountNumberGenerator
 	accountNumber := gen.GenerateAccountNumber(ctx, db)
 
-	// Create the new account
+	// initialize account number
 	newAccount := &Account{
-		Email:         account.Email,
 		AccountNumber: accountNumber,
-		FirstName:     account.FirstName,
-		LastName:      account.LastName,
-		Password:      account.Password,
-		Balance:       500,
-		RoleID:        2,
-		IsActive:      false,
 	}
-
 	if err := db.DB.Create(newAccount).Error; err != nil {
 		log.Printf("Error creating account: %v\n", err)
 		return helper.NewInternal()

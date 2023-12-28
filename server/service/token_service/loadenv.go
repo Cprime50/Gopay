@@ -32,10 +32,10 @@ func LoadTokenServiceConfig() (*TSConfig, error) {
 	}
 
 	refreshSecret := os.Getenv("REFRESH_SECRET")
-	idTokenExp := os.Getenv("ID_TOKEN_EXP")
+	TokenExp := os.Getenv("TOKEN_EXP")
 	refreshTokenExp := os.Getenv("REFRESH_TOKEN_EXP")
 
-	idExp, err := strconv.ParseInt(idTokenExp, 0, 64)
+	idExp, err := strconv.ParseInt(TokenExp, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse ID_TOKEN_EXP as int: %w", err)
 	}

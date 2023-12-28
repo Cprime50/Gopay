@@ -78,8 +78,8 @@ func (s *TokenService) Signout(ctx context.Context, id uuid.UUID) error {
 	return s.TokenRepository.DeleteUserRefreshTokens(ctx, id.String())
 }
 
-// JWTAuth validates the provided ID token JWT string using the public RSA key.
-func (s *TokenService) JWTAuth(tokenString string) (*models.Account, error) {
+// ValidateJWT validates the provided ID token JWT string using the public RSA key.
+func (s *TokenService) ValidateJWT(tokenString string) (*models.Account, error) {
 	// Validate and parse the ID token using the provided public RSA key
 	claims, err := validateJWT(tokenString, s.PubKey)
 	if err != nil {
@@ -90,13 +90,8 @@ func (s *TokenService) JWTAuth(tokenString string) (*models.Account, error) {
 }
 
 // JWTAuthAdmin validates the id token jwt string
-func (s *TokenService) JWTAuthAdmin(tokenString string) (*models.Account, error) {
-	claims, err := validateJWT(tokenString, s.PubKey)
-	if err != nil {
-		log.Printf("Unable to validate or parse ID token - Error: %v\n", err)
-		return nil, helper.NewAuthorization("Unable to verify user from ID token")
-	}
-	claims, err = validateAdminJWT(tokenString, s.PubKey) // uses public RSA key
+func (s *TokenService) ValidateAdminJWT(tokenString string) (*models.Account, error) {
+	claims, err := validateAdminJWT(tokenString, s.PubKey) // uses public RSA key
 	if err != nil {
 		log.Printf("Unable to validate or parse idToken - Error: %v\n", err)
 		return nil, helper.NewAuthorization("Unable to verify admin from idToken")
