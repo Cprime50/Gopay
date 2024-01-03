@@ -1,4 +1,4 @@
-package config
+package models
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/Cprime50/Gopay/helper"
 	"github.com/go-redis/redis/v8"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -18,34 +18,41 @@ type DataSources struct {
 	RedisClient *redis.Client
 }
 
+// GetDB returns the gorm.DB instance
+func (ds *DataSources) GetDB() *gorm.DB {
+	return ds.DB
+}
+
 // InitDS establishes connections to fields in dataSources
-func (ds *DataSources) InitDS(ctx context.Context) (*DataSources, error) {
+func InitDS() (*DataSources, error) {
 	log.Printf("Initializing data sources\n")
 
-	dsn := os.Getenv("DATABASE_URL")
+	host := os.Getenv("DB_HOST")
+	username := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbname := os.Getenv("DB_NAME")
+	port := os.Getenv("DB_PORT")
 
-	log.Printf("Connecting to Mysql\n")
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, username, password, dbname, port)
+
+	log.Printf("Connecting to Postgres\n")
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{
 		SingularTable: true,
 	}})
 
 	if err != nil {
-		log.Fatalf("Failed to connect to Mysql database: %s", err)
+		log.Fatalf("Failed to connect to Postgres database: %s", err)
 		return nil, helper.NewInternal()
 	}
 
 	//Enable pooling
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, err
-	}
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-
-	// Verify database connection is working
-	if err := ds.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("error connecting to db: %w", err)
-	}
+	// sqlDB, err := db.DB()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// sqlDB.SetMaxIdleConns(10)
+	// sqlDB.SetMaxOpenConns(100)
+	fmt.Println("Connected to postgres successfully")
 
 	// Initialize redis connection
 	redisHost := os.Getenv("REDIS_HOST")
@@ -64,11 +71,13 @@ func (ds *DataSources) InitDS(ctx context.Context) (*DataSources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to redis: %w", err)
 	}
+	fmt.Println("Connected to redis successfully")
 
-	return &DataSources{
+	ds := &DataSources{
 		DB:          db,
 		RedisClient: rdb,
-	}, nil
+	}
+	return ds, nil
 }
 
 // close to be used in graceful server shutdown
@@ -79,27 +88,12 @@ func (ds *DataSources) Close() error {
 		return helper.NewInternal()
 	}
 	if err := sqlDB.Close(); err != nil {
-		log.Fatal("error closing Mysql: %w", err)
+		log.Fatal("error closing Postgresql: %w", err)
 		return helper.NewInternal()
 	}
 
 	if err := ds.RedisClient.Close(); err != nil {
 		log.Fatal("error closing Redis Client: %w", err)
-		return helper.NewInternal()
-	}
-
-	return nil
-}
-
-// Ping DB
-func (ds *DataSources) Ping(ctx context.Context) error {
-	Db, err := ds.DB.DB()
-	if err != nil {
-		return err
-	}
-
-	if err := Db.PingContext(ctx); err != nil {
-		log.Fatal("Error Pinging DB:", err)
 		return helper.NewInternal()
 	}
 

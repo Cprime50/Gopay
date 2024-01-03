@@ -24,7 +24,7 @@ func (h *Handler) SetupRoutes() {
 
 	// Basic Authenticated routes
 	authRoutes := h.router.Group("/api")
-	authRoutes.Use(TimeoutMiddleware(h.TimeoutDuration), h.TokenService.AuthUser())
+	authRoutes.Use(h.TokenService.AuthUser())
 	{
 
 	}

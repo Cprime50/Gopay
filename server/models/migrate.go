@@ -1,4 +1,4 @@
-package migrations
+package models
 
 import (
 	"fmt"
@@ -7,24 +7,20 @@ import (
 	"strconv"
 	"time"
 
-	models "github.com/Cprime50/Gopay/models/account"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
-type Database struct {
-	DB *gorm.DB
-}
-
-func (Db *Database) Migrate() {
+func (Db *DataSources) Migrate() {
 	log.Printf("Migrations Started")
 	startTime := time.Now()
-	Db.DB.AutoMigrate(&models.Role{})
-	Db.DB.AutoMigrate(&models.Account{})
-
-	err := Db.seedData() // default data being added into the database upon migration
+	err := Db.DB.AutoMigrate(&Role{}, &Account{})
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	_err := Db.seedData() // default data being added into the database upon migration
+	if _err != nil {
+		log.Fatal(_err)
 	}
 	log.Println("seeding data complete")
 	elapsed := time.Since(startTime)
@@ -33,12 +29,12 @@ func (Db *Database) Migrate() {
 }
 
 // adding some default user data and roles into the db
-func (Db *Database) seedData() error {
+func (Db *DataSources) seedData() error {
 
-	var roles = []models.Role{{ID: 1, Name: "admin", Description: "Administrator role"}, {ID: 2, Name: "user", Description: "user role"}}
+	var roles = []Role{{ID: 1, Name: "admin", Description: "Administrator role"}, {ID: 2, Name: "user", Description: "user role"}}
 	account, err := createAdminAccount()
 	if err != nil {
-		fmt.Println("error seeding admib data", err)
+		fmt.Println("error seeding admin data", err)
 	}
 	Db.DB.Save(&roles)
 	Db.DB.Save(&account)
@@ -49,7 +45,7 @@ func (Db *Database) seedData() error {
 
 //admin
 
-func createAdminAccount() (*models.Account, error) {
+func createAdminAccount() (*Account, error) {
 	adminID, err := uuid.Parse(os.Getenv("ADMIN_ID"))
 	if err != nil {
 		return nil, err
@@ -64,12 +60,12 @@ func createAdminAccount() (*models.Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	hashedPassword, err := models.HashPassword(os.Getenv("ADMIN_PASSWORD"))
+	hashedPassword, err := HashPassword(os.Getenv("ADMIN_PASSWORD"))
 	if err != nil {
 		return nil, err
 	}
 
-	account := &models.Account{
+	account := &Account{
 		ID:            adminID,
 		Email:         os.Getenv("ADMIN_EMAIL"),
 		Password:      hashedPassword,

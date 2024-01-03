@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Cprime50/Gopay/helper"
-	models "github.com/Cprime50/Gopay/models/account"
+	models "github.com/Cprime50/Gopay/models"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator"
 )

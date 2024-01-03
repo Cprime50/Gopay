@@ -23,7 +23,8 @@ type Handler struct {
 	MaxBodyBytes    int64
 }
 
-func NewHandler(c *Handler, router *gin.Engine) (*Handler, error) {
+// Initilizes and retuens new handler
+func (h *Handler) NewHandler(router *gin.Engine) (*Handler, error) {
 	log.Print("setting up handler")
 
 	// read in ACCOUNT_API_URL
@@ -45,10 +46,16 @@ func NewHandler(c *Handler, router *gin.Engine) (*Handler, error) {
 	//set timeout middleware
 	timeoutDuration := time.Duration(time.Duration(hTimeout) * time.Second)
 
+	// Initialize AccountService
+	accountService := account_service.AccountService{} // Replace with your actual initialization
+
+	// Initialize TokenService
+	tokenService := token_service.TokenService{}
+
 	handler := &Handler{
 		router:          router,
-		AccountService:  c.AccountService,
-		TokenService:    c.TokenService,
+		AccountService:  &accountService,
+		TokenService:    &tokenService,
 		BaseURL:         baseURL,
 		TimeoutDuration: timeoutDuration,
 		MaxBodyBytes:    maxbb,
@@ -67,8 +74,8 @@ func NewHandler(c *Handler, router *gin.Engine) (*Handler, error) {
 		MaxAge: 12 * time.Hour,
 	}))
 
-	//routes and middleware setup
-	handler.SetupRoutes() //to set up routes
+	// //routes and middleware setup
+	// handler.SetupRoutes() //to set up routes
 
 	return handler, nil
 

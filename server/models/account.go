@@ -8,13 +8,14 @@ import (
 	"sync"
 
 	"github.com/Cprime50/Gopay/helper"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-type AccountRepository struct {
-	DB *gorm.DB
-}
+// type AccountRepository struct {
+// 	DB *gorm.DB
+// }
 
 // AccountNumberGenerator generates unique 10-digit account numbers.
 type AccountNumberGenerator struct {
@@ -22,18 +23,22 @@ type AccountNumberGenerator struct {
 	mu      sync.Mutex
 }
 
-// NewAccountRepository initializes new account repository
-func NewAccountRepository(db *gorm.DB) *AccountRepository {
-	return &AccountRepository{
-		DB: db,
-	}
-}
+// // NewAccountRepository initializes new account repository
+// func NewAccountRepository() *AccountRepository {
+// 	ds, err := InitDS()
+// 	if err != nil {
+// 		log.Fatal("Failed to initialize DataSources:", err)
+// 	}
+// 	return &AccountRepository{
+// 		DB: ds.DB,
+// 	}
+// }
 
 type Account struct {
 	gorm.Model    `json:"-"`
 	ID            uuid.UUID `gorm:"primary_key"`
 	Email         string    `gorm:"uniqueIndex;not null;type:varchar(250)" json:"email"`
-	AccountNumber int64     `gorm:"type:varchar(100);uniqueIndex;column:account_number;not null"`
+	AccountNumber int64     `gorm:"uniqueIndex;column:account_number;not null"`
 	Balance       float64   `gorm:"type:decimal(10,2)"`
 	FirstName     string    `gorm:"type:varchar(100);not null"`
 	LastName      string    `gorm:"type:varchar(100);not null"`
@@ -45,7 +50,7 @@ type Account struct {
 }
 
 // CreateAccount creates a new account in the database
-func (db *AccountRepository) CreateAccount(ctx context.Context, account *Account) error {
+func (db *DataSources) CreateAccount(ctx context.Context, account *Account) error {
 	// Check if an account with the given email already exists
 	_, err := db.GetAccountByEmail(ctx, account.Email)
 	switch {
@@ -78,7 +83,7 @@ func (db *AccountRepository) CreateAccount(ctx context.Context, account *Account
 }
 
 // GenerateAccountNumber generates a unique 10-digit account number.
-func (gen *AccountNumberGenerator) GenerateAccountNumber(ctx context.Context, db *AccountRepository) int64 {
+func (gen *AccountNumberGenerator) GenerateAccountNumber(ctx context.Context, db *DataSources) int64 {
 	gen.mu.Lock()
 	defer gen.mu.Unlock()
 
@@ -94,52 +99,59 @@ func (gen *AccountNumberGenerator) GenerateAccountNumber(ctx context.Context, db
 }
 
 // GetAccountByAccountNum gets a user's account from the database based on the account number
-func (db *AccountRepository) GetAccountByAccountNum(ctx context.Context, accountNumber int64) (*Account, error) {
-	var account *Account
-	err := db.DB.WithContext(ctx).Where("account_number = ?", accountNumber).First(&account).Error
+func (ds *DataSources) GetAccountByAccountNum(ctx context.Context, accountNumber int64) (*Account, error) {
+	db := ds.GetDB()
+	var account Account
+	err := db.WithContext(ctx).Where("account_number = ?", accountNumber).First(&account).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Printf("account with ID %d not found", account.ID)
+			fmt.Printf("account with ID %d not found", accountNumber)
 			return nil, helper.NewNotFound("account_number", fmt.Sprintf("%d", accountNumber))
 		}
 		log.Println("Error querying account:", err)
 		return nil, helper.NewInternal()
 	}
-	return account, nil
+	return &account, nil
 }
 
 // GetAccountByEmail gets a user's account from the database based on the email
-func (db *AccountRepository) GetAccountByEmail(ctx context.Context, email string) (*Account, error) {
-	var account *Account
-	err := db.DB.WithContext(ctx).Where("email = ?", email).First(&account).Error
+func (ds *DataSources) GetAccountByEmail(ctx context.Context, email string) (*Account, error) {
+
+	db := ds.GetDB()
+	if db == nil {
+		log.Println("DB is nil")
+		return nil, helper.NewInternal()
+	}
+	var account Account
+	err := db.Where("email = ?", email).First(&account).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Printf("account with email %s not found", account.Email)
-			return nil, helper.NewNotFound("email", account.Email)
+			fmt.Printf("account with email %s not found", email)
+			return nil, helper.NewNotFound("email", email)
 		}
 		log.Println("Error querying account:", err)
 		return nil, helper.NewInternal()
 	}
-	return account, nil
+	return &account, nil
 }
 
 // GetAccountByID gets a user's account from the database based on the ID
-func (db *AccountRepository) GetAccountByID(ctx context.Context, id uuid.UUID) (*Account, error) {
-	var account *Account
+func (db *DataSources) GetAccountByID(ctx context.Context, id uuid.UUID) (*Account, error) {
+	var account Account
 	err := db.DB.WithContext(ctx).Where("id = ?", id).First(&account).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Printf("account with ID %s not found", account.ID)
-			return nil, helper.NewNotFound("id", account.ID.String())
+			fmt.Printf("account with ID %s not found", id)
+			return nil, helper.NewNotFound("id", id.String())
 		}
 		log.Println("Error querying account in db:", err)
 		return nil, helper.NewInternal()
 	}
-	return account, nil
+	return &account, nil
 }
 
 // Update Account details
-func (db *AccountRepository) UpdateAccount(ctx context.Context, account *Account) error {
+func (db *DataSources) UpdateAccount(ctx context.Context, account *Account) error {
 	// Update only the fields that are filled in the account
 	// Omit sensitive fields like password, balance, and role
 	err := db.DB.WithContext(ctx).Omit("password", "balance", "role").Updates(&account).Error
@@ -154,7 +166,7 @@ func (db *AccountRepository) UpdateAccount(ctx context.Context, account *Account
 	return nil
 }
 
-func (db *AccountRepository) ChangeUserStatus(ctx context.Context, account *Account) error {
+func (db *DataSources) ChangeUserStatus(ctx context.Context, account *Account) error {
 	// Check if the accounts exists based on the provided accountID
 	_, err := db.GetAccountByID(ctx, account.ID)
 	if err != nil {
@@ -180,7 +192,7 @@ func (db *AccountRepository) ChangeUserStatus(ctx context.Context, account *Acco
 }
 
 // Resetpassword updates the users password
-func (db *AccountRepository) ResetPassword(ctx context.Context, account *Account) error {
+func (db *DataSources) ResetPassword(ctx context.Context, account *Account) error {
 	// Hash the new password
 	hashedPassword, err := HashPassword(account.Password)
 	if err != nil {
@@ -204,7 +216,7 @@ func (db *AccountRepository) ResetPassword(ctx context.Context, account *Account
 }
 
 // Upload Image by file to cloudinary and save the img url to db
-func (db *AccountRepository) UpdateImgByFile(ctx context.Context, id uuid.UUID, imgFile *File) error {
+func (db *DataSources) UpdateImgByFile(ctx context.Context, id uuid.UUID, imgFile *File) error {
 	media := NewImageRepository()
 	imageURL, err := media.FileUpload(imgFile)
 	if err != nil {
@@ -226,7 +238,7 @@ func (db *AccountRepository) UpdateImgByFile(ctx context.Context, id uuid.UUID, 
 }
 
 // Upload Image by url to cloudinary and save the img url to db
-func (db *AccountRepository) UpdateImgByUrl(ctx context.Context, id uuid.UUID, imgUrl *Url) error {
+func (db *DataSources) UpdateImgByUrl(ctx context.Context, id uuid.UUID, imgUrl *Url) error {
 	media := NewImageRepository()
 	imageURL, err := media.RemoteUpload(imgUrl)
 	if err != nil {
@@ -248,7 +260,7 @@ func (db *AccountRepository) UpdateImgByUrl(ctx context.Context, id uuid.UUID, i
 }
 
 // GetAllAccount gets a list of all account in db
-func (db *AccountRepository) GetAllAccount(ctx context.Context) ([]*Account, error) {
+func (db *DataSources) GetAllAccount(ctx context.Context) ([]*Account, error) {
 	var accounts []*Account
 	if err := db.DB.WithContext(ctx).Omit("password").Find(&accounts).Error; err != nil {
 		log.Println("Error getting users accounts:", err)
@@ -258,7 +270,7 @@ func (db *AccountRepository) GetAllAccount(ctx context.Context) ([]*Account, err
 }
 
 // DeleteAccount deletes an account based on the provided ID
-func (db *AccountRepository) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+func (db *DataSources) DeleteAccount(ctx context.Context, id uuid.UUID) error {
 	var account *Account
 	if err := db.DB.WithContext(ctx).Where("id = ?", id).Delete(&account).Error; err != nil {
 		if err != nil {

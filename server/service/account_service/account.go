@@ -6,20 +6,20 @@ import (
 	"log"
 
 	"github.com/Cprime50/Gopay/helper"
-	models "github.com/Cprime50/Gopay/models/account"
+	models "github.com/Cprime50/Gopay/models"
 	"gorm.io/gorm"
 )
 
 // AccountService acts as a struct for injecting an implementation of AccountRepository
 // for use in service methods
 type AccountService struct {
-	AccountRepository models.AccountRepository
+	AccountRepository models.DataSources
 	ImageRepository   models.ImageRepository
 }
 
 // hold repositories that will eventually be injected into Account service layer
 type AccountConfig struct {
-	AccountRepository models.AccountRepository
+	AccountRepository models.DataSources
 	ImageRepository   models.ImageRepository
 }
 
@@ -60,6 +60,7 @@ func (s *AccountService) Signin(ctx context.Context, account *models.Account) er
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return helper.NewNotFound("Email not found, create account", err.Error())
 		}
+		log.Println("error getting user form db", err)
 		return helper.NewInternal()
 	}
 	// verify password - check if matches
@@ -74,3 +75,14 @@ func (s *AccountService) Signin(ctx context.Context, account *models.Account) er
 	*account = *accountGotten
 	return nil
 }
+
+// TODO
+// func (s *AccountService) GetAccount(ctx context.Context, account *models.Account) (*[]models.Account, error) {
+// 	var accounts *[]models.Account
+// 	m := &models.DataSources{}
+// 	accounts, err := m.GetAllAccount(ctx)
+// 	if err != nil {
+// 		return accounts, helper.NewInternal()
+// 	}
+// 	return accounts, nil
+// }

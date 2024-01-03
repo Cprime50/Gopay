@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	db "github.com/Cprime50/Gopay/db"
-	"github.com/Cprime50/Gopay/migrations"
+	"github.com/Cprime50/Gopay/handler"
+	db "github.com/Cprime50/Gopay/models"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -29,19 +29,24 @@ func serveApp() {
 	}
 	log.Println(".env file loaded successfully")
 
-	// load database
-	dataSources := &db.DataSources{}
-	_, _err := dataSources.InitDS(context.Background())
+	// initialize datasource
+	dataSources, _err := db.InitDS()
 	if _err != nil {
-		log.Fatalf("Unable to initialize data sources: %v\n", err)
+		log.Fatalf("Unable to initialize data sources: %v\n", _err)
 	}
+	defer dataSources.Close()
 
 	//run migrations
-	migrate := &migrations.Database{}
-	migrate.Migrate()
+	dataSources.Migrate()
 
 	router := gin.Default()
-
+	// handler := handler.Handler{}
+	handlerConfig := &handler.Handler{}
+	newHandler, err := handlerConfig.NewHandler(router)
+	newHandler.SetupRoutes()
+	if err != nil {
+		log.Fatalf("Error setting up handler: %v", err)
+	}
 	srv := &http.Server{
 		Addr:         ":8082", // Good practice to set timeouts to avoid Slow-loris attacks.
 		WriteTimeout: time.Second * 15,
@@ -79,4 +84,5 @@ func serveApp() {
 		log.Println("timeout of 2 seconds.")
 	}
 	log.Println("Server exiting")
+
 }
