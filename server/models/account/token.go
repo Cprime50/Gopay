@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/Cprime50/Gopay/db"
 	"github.com/Cprime50/Gopay/helper"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -17,34 +17,22 @@ type RefreshToken struct {
 	SignedString string    `json:"refreshToken"`
 }
 
-type IDToken struct {
-	SignedString string `json:"idToken"`
+type Token struct {
+	SignedString string `json:"token"`
 }
 
 // TokenPair used for returning pairs of id and refresh tokens
 type TokenPair struct {
-	IDToken
+	Token
 	RefreshToken
 }
 
-// TokenRepository interface
-type TokenRepository struct {
-	Redis *redis.Client
-}
-
-// Factory function to create a new TokenRepository
-func NewTokenRepository(redisClient *redis.Client) *TokenRepository {
-	return &TokenRepository{
-		Redis: redisClient,
-	}
-}
-
 // SetRefreshToken stores a refresh token with an expiry time
-func (r *TokenRepository) SetRefreshToken(ctx context.Context, accountID string, tokenID string, expiresIn time.Duration) error {
+func SetRefreshToken(ctx context.Context, accountID string, tokenID string, expiresIn time.Duration) error {
 	// We'll store accountID with token id so we can scan (non-blocking)
 	// over the user's tokens and delete them in case of token leakage
 	key := fmt.Sprintf("%s:%s", accountID, tokenID)
-	if err := r.Redis.Set(ctx, key, 0, expiresIn).Err(); err != nil {
+	if err := db.RedisClient.Set(ctx, key, 0, expiresIn).Err(); err != nil {
 		log.Printf("Could not SET refresh token to redis for accountID/tokenID: %s/%s: %v\n", accountID, tokenID, err)
 		return helper.NewInternal()
 	}
@@ -52,11 +40,9 @@ func (r *TokenRepository) SetRefreshToken(ctx context.Context, accountID string,
 }
 
 // Deletes a specific refresh token from Redis
-func (r *TokenRepository) DeleteRefreshToken(ctx context.Context, accountID string, tokenID string) error {
+func DeleteRefreshToken(ctx context.Context, accountID string, tokenID string) error {
 	key := fmt.Sprintf("%s:%s", accountID, tokenID)
-
-	result := r.Redis.Del(ctx, key)
-
+	result := db.RedisClient.Del(ctx, key)
 	if err := result.Err(); err != nil {
 		log.Printf("Could not delete refresh token to redis for accountID/tokenID: %s/%s: %v\n", accountID, tokenID, err)
 		return helper.NewInternal()
@@ -74,14 +60,14 @@ func (r *TokenRepository) DeleteRefreshToken(ctx context.Context, accountID stri
 
 // DeleteUserRefreshTokens looks for all tokens beginning with
 // accountID and scans to delete them in a non-blocking fashion
-func (r *TokenRepository) DeleteUserRefreshTokens(ctx context.Context, accountID string) error {
+func DeleteUserRefreshTokens(ctx context.Context, accountID string) error {
 	pattern := fmt.Sprintf("%s*", accountID)
 
-	iter := r.Redis.Scan(ctx, 0, pattern, 5).Iterator()
+	iter := db.RedisClient.Scan(ctx, 0, pattern, 5).Iterator()
 	failCount := 0
 
 	for iter.Next(ctx) {
-		if err := r.Redis.Del(ctx, iter.Val()).Err(); err != nil {
+		if err := db.RedisClient.Del(ctx, iter.Val()).Err(); err != nil {
 			log.Printf("Failed to delete refresh token: %s\n", iter.Val())
 			failCount++
 		}

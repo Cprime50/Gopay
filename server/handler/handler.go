@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	account_service "github.com/Cprime50/Gopay/service/account_service"
-	token_service "github.com/Cprime50/Gopay/service/token_service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -16,8 +14,6 @@ import (
 // Handler struct holds required services for handler to function
 type Handler struct {
 	router          *gin.Engine
-	AccountService  *account_service.AccountService
-	TokenService    *token_service.TokenService
 	BaseURL         string
 	TimeoutDuration time.Duration
 	MaxBodyBytes    int64
@@ -46,16 +42,8 @@ func (h *Handler) NewHandler(router *gin.Engine) (*Handler, error) {
 	//set timeout middleware
 	timeoutDuration := time.Duration(time.Duration(hTimeout) * time.Second)
 
-	// Initialize AccountService
-	accountService := account_service.AccountService{} // Replace with your actual initialization
-
-	// Initialize TokenService
-	tokenService := token_service.TokenService{}
-
 	handler := &Handler{
 		router:          router,
-		AccountService:  &accountService,
-		TokenService:    &tokenService,
 		BaseURL:         baseURL,
 		TimeoutDuration: timeoutDuration,
 		MaxBodyBytes:    maxbb,

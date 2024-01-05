@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Cprime50/Gopay/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,14 +25,14 @@ func (h *Handler) SetupRoutes() {
 
 	// Basic Authenticated routes
 	authRoutes := h.router.Group("/api")
-	authRoutes.Use(h.TokenService.AuthUser())
+	authRoutes.Use(middleware.AuthUser())
 	{
 
 	}
 
 	// Admin routes
 	adminRoutes := h.router.Group("/api/admin")
-	adminRoutes.Use(TimeoutMiddleware(h.TimeoutDuration), h.TokenService.AuthAdmin())
+	adminRoutes.Use(TimeoutMiddleware(h.TimeoutDuration), middleware.AuthAdmin())
 	{
 
 	}

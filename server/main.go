@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	db "github.com/Cprime50/Gopay/db"
 	"github.com/Cprime50/Gopay/handler"
-	db "github.com/Cprime50/Gopay/models"
+	"github.com/Cprime50/Gopay/middleware"
+	"github.com/Cprime50/Gopay/migrations"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -30,14 +32,17 @@ func serveApp() {
 	log.Println(".env file loaded successfully")
 
 	// initialize datasource
-	dataSources, _err := db.InitDS()
-	if _err != nil {
-		log.Fatalf("Unable to initialize data sources: %v\n", _err)
-	}
-	defer dataSources.Close()
+	db.InitDS()
+	defer db.Close()
 
 	//run migrations
-	dataSources.Migrate()
+	migrations.Migrate()
+
+	//Generate key
+	_err := middleware.GenerateRSAKeys()
+	if _err != nil {
+		log.Fatal("Error gerating rsa keys", _err)
+	}
 
 	router := gin.Default()
 	// handler := handler.Handler{}
@@ -74,6 +79,8 @@ func serveApp() {
 	log.Println("Shutdown Server ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+
+	defer db.Close()
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("Server Shutdown:", err)

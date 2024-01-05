@@ -1,4 +1,4 @@
-package models
+package db
 
 import (
 	"context"
@@ -13,18 +13,19 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type DataSources struct {
+var (
 	DB          *gorm.DB
 	RedisClient *redis.Client
+)
+
+// Initializes the DS connection
+func InitDS() (*gorm.DB, *redis.Client) {
+	DB, RedisClient, _ = connectDS()
+	return DB, RedisClient
 }
 
-// GetDB returns the gorm.DB instance
-func (ds *DataSources) GetDB() *gorm.DB {
-	return ds.DB
-}
-
-// InitDS establishes connections to fields in dataSources
-func InitDS() (*DataSources, error) {
+// connectDS establishes connections to dataSources
+func connectDS() (*gorm.DB, *redis.Client, error) {
 	log.Printf("Initializing data sources\n")
 
 	host := os.Getenv("DB_HOST")
@@ -42,7 +43,7 @@ func InitDS() (*DataSources, error) {
 
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres database: %s", err)
-		return nil, helper.NewInternal()
+		return nil, nil, helper.NewInternal()
 	}
 
 	//Enable pooling
@@ -69,20 +70,16 @@ func InitDS() (*DataSources, error) {
 	_, err = rdb.Ping(context.Background()).Result()
 
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to redis: %w", err)
+		return nil, nil, fmt.Errorf("error connecting to redis: %w", err)
 	}
 	fmt.Println("Connected to redis successfully")
 
-	ds := &DataSources{
-		DB:          db,
-		RedisClient: rdb,
-	}
-	return ds, nil
+	return db, rdb, nil
 }
 
 // close to be used in graceful server shutdown
-func (ds *DataSources) Close() error {
-	sqlDB, err := ds.DB.DB()
+func Close() error {
+	sqlDB, err := DB.DB()
 	if err != nil {
 		log.Fatal(err)
 		return helper.NewInternal()
@@ -92,10 +89,11 @@ func (ds *DataSources) Close() error {
 		return helper.NewInternal()
 	}
 
-	if err := ds.RedisClient.Close(); err != nil {
+	if err := RedisClient.Close(); err != nil {
 		log.Fatal("error closing Redis Client: %w", err)
 		return helper.NewInternal()
 	}
+	log.Println("Closing Datasources")
 
 	return nil
 }

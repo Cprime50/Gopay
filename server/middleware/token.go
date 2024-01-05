@@ -1,12 +1,13 @@
-package service
+package middleware
 
 import (
-	"crypto/rsa"
 	"fmt"
 	"log"
 	"time"
 
-	models "github.com/Cprime50/Gopay/models"
+	"github.com/Cprime50/Gopay/helper"
+	models "github.com/Cprime50/Gopay/models/account"
+
 	//"github.com/dgrijalva/jwt-go"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -20,7 +21,19 @@ type idTokenCustomClaims struct {
 
 // generateJWT generates an IDToken which is a jwt with myCustomClaims
 // Could call this GenerateJWT, but the signature makes this fairly clear
-func generateJWT(account *models.Account, key *rsa.PrivateKey, exp int64) (string, error) {
+func generateJWT(account *models.Account) (string, error) {
+	key, err := privKey()
+	if err != nil {
+		log.Println("error loading private pem key", err)
+		helper.NewInternal()
+	}
+
+	exp, err := tokenExp()
+	if err != nil {
+		log.Println("error loading toekn expiration", err)
+		helper.NewInternal()
+	}
+
 	//tokenTTL, _ := strconv.Atoi(os.Getenv("TOKEN_TTL"))
 	issuedAt := jwt.NewNumericDate(time.Now().UTC())
 	expiresAt := jwt.NewNumericDate(issuedAt.Add(time.Hour * time.Duration(exp)))
@@ -62,7 +75,14 @@ type refreshTokenCustomClaims struct {
 
 // generateRefreshToken creates a refresh token
 // The refresh token stores only the account's ID, role and a string
-func generateRefreshToken(account *models.Account, key string, exp int64) (*refreshTokenData, error) {
+func generateRefreshToken(account *models.Account) (*refreshTokenData, error) {
+	exp, err := refreshExp()
+	if err != nil {
+		log.Println("error loading reFreshtoken expiration", err)
+		helper.NewInternal()
+	}
+	key := refreshSecret()
+
 	issuedAt := jwt.NewNumericDate(time.Now().UTC())
 	expiresAt := jwt.NewNumericDate(issuedAt.Add(time.Hour * time.Duration(exp)))
 	tokenID, err := uuid.NewRandom() // v4 uuid in the google uuid lib
@@ -98,7 +118,13 @@ func generateRefreshToken(account *models.Account, key string, exp int64) (*refr
 }
 
 // validateIDToken returns the token's claims if the token is valid
-func validateJWT(tokenString string, key *rsa.PublicKey) (*idTokenCustomClaims, error) {
+func validateJWT(tokenString string) (*idTokenCustomClaims, error) {
+	key, err := pubKey()
+	if err != nil {
+		log.Println("error loading public pem key", err)
+		helper.NewInternal()
+	}
+
 	claims := &idTokenCustomClaims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -119,7 +145,12 @@ func validateJWT(tokenString string, key *rsa.PublicKey) (*idTokenCustomClaims, 
 }
 
 // Validate admin
-func validateAdminJWT(tokenString string, key *rsa.PublicKey) (*idTokenCustomClaims, error) {
+func validateAdminJWT(tokenString string) (*idTokenCustomClaims, error) {
+	key, err := pubKey()
+	if err != nil {
+		log.Println("error loading public pem key", err)
+		helper.NewInternal()
+	}
 	claims := &idTokenCustomClaims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -143,7 +174,8 @@ func validateAdminJWT(tokenString string, key *rsa.PublicKey) (*idTokenCustomCla
 }
 
 // validateRefreshToken uses the secret key to validate a refresh token
-func validateRefreshToken(tokenString string, key string) (*refreshTokenCustomClaims, error) {
+func validateRefreshToken(tokenString string) (*refreshTokenCustomClaims, error) {
+	key := refreshSecret()
 	claims := &refreshTokenCustomClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(key), nil
@@ -166,7 +198,8 @@ func validateRefreshToken(tokenString string, key string) (*refreshTokenCustomCl
 }
 
 // Validate admin refresh token
-func validateAdminRefreshToken(tokenString string, key string) (*refreshTokenCustomClaims, error) {
+func validateAdminRefreshToken(tokenString string) (*refreshTokenCustomClaims, error) {
+	key := refreshSecret()
 	claims := &refreshTokenCustomClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(key), nil

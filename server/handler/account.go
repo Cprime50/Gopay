@@ -7,9 +7,11 @@ import (
 	"net/http"
 
 	"github.com/Cprime50/Gopay/helper"
-	models "github.com/Cprime50/Gopay/models"
+	"github.com/Cprime50/Gopay/middleware"
+	models "github.com/Cprime50/Gopay/models/account"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator"
+	"gorm.io/gorm"
 )
 
 // signupReq is not exported, hence the lowercase name
@@ -60,24 +62,26 @@ func (h *Handler) Signup(c *gin.Context) {
 		LastName:  input.Lastname,
 		Email:     input.Email,
 		Password:  input.Password,
-		Balance:   500,
-		RoleID:    2,
-		IsActive:  false,
 	}
 
 	ctx := c.Request.Context()
-	err := h.AccountService.Signup(ctx, account)
-
+	hashedPassword, err := models.HashPassword(account.Password)
 	if err != nil {
-		log.Printf("Failed to sign up user: %v\n", err.Error())
-		c.AbortWithStatusJSON(helper.Status(err), gin.H{
-			"error": err,
-		})
+		log.Printf("Unable to hashpassword for account: %v, due to: %v\n", account.Email, err)
+		c.AbortWithStatusJSON(helper.Status(err), gin.H{"message": "Internal server error"})
+		return
+	}
+	account.Password = hashedPassword
+
+	//model layer will handle generatingn account number and initilizing user inputed data
+	if err := models.CreateAccount(ctx, account); err != nil {
+		log.Printf("Error creating account: %v", err)
+		c.AbortWithStatusJSON(helper.Status(err), gin.H{"message": "Internal server error"})
 		return
 	}
 
 	// create token pair as strings
-	tokens, err := h.TokenService.NewPairFromUser(ctx, account, "")
+	tokens, err := middleware.NewPairFromUser(ctx, account, "")
 
 	if err != nil {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())
@@ -125,17 +129,31 @@ func (h *Handler) Signin(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	err := h.AccountService.Signin(ctx, account)
-
+	accountGotten, err := models.GetAccountByEmail(ctx, account.Email)
 	if err != nil {
-		log.Printf("Failed to sign in user: %v\n", err.Error())
-		c.AbortWithStatusJSON(helper.Status(err), gin.H{
-			"error": err,
-		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error(), "message": "Email not found, create account"})
+			return
+
+		}
+		log.Println("Failed to sign in user: error getting user form db", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Something went wrong"})
+		return
+
+	}
+	// verify password - check if matches
+	match, err := helper.ComparePassword(accountGotten.Password, account.Password)
+	if err != nil {
+		log.Println("error comparing password", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Something went wrong"})
+		return
+	}
+	if !match {
+		c.AbortWithStatusJSON(helper.Status(err), gin.H{"error": err.Error(), "message": "Invalid email and password combination"})
 		return
 	}
 
-	tokens, err := h.TokenService.NewPairFromUser(ctx, account, "")
+	tokens, err := middleware.NewPairFromUser(ctx, account, "")
 
 	if err != nil {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())

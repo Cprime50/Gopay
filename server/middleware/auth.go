@@ -1,4 +1,4 @@
-package service
+package middleware
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ type invalidArgument struct {
 // AuthUser extracts a user from the Authorization header
 // which is of the form "Bearer token"
 // It sets the user to the context if the user exists
-func (s TokenService) AuthUser() gin.HandlerFunc {
+func AuthUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := extractTokenFromHeader(c)
 		if err != nil {
@@ -34,7 +34,7 @@ func (s TokenService) AuthUser() gin.HandlerFunc {
 			return
 		}
 		// validate token here
-		account, err := s.ValidateJWT(token)
+		account, err := ValidateJWT(token)
 
 		if err != nil {
 			err := helper.NewAuthorization("Provided token is invalid")
@@ -52,7 +52,7 @@ func (s TokenService) AuthUser() gin.HandlerFunc {
 }
 
 // JWTAuthAdminMiddleware is a middleware function that checks for both regular authentication and admin privileges.
-func (s TokenService) AuthAdmin() gin.HandlerFunc {
+func AuthAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract token from Authorization header
 		token, err := extractTokenFromHeader(c)
@@ -63,7 +63,7 @@ func (s TokenService) AuthAdmin() gin.HandlerFunc {
 		}
 
 		// Validate token for regular user authentication
-		account, err := s.ValidateJWT(token)
+		account, err := ValidateJWT(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()
@@ -71,7 +71,7 @@ func (s TokenService) AuthAdmin() gin.HandlerFunc {
 		}
 
 		// Validate admin role
-		accountAdmin, _err := s.ValidateAdminJWT(token)
+		accountAdmin, _err := ValidateAdminJWT(token)
 		if _err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Only Administrator is allowed to perform this action"})
 			c.Abort()
