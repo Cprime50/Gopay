@@ -1,7 +1,7 @@
 .PHONY: build docker-up docker-down run stop
 
 # Set the name of your Go application binary
-APP_BINARY_NAME := your_app
+APP_BINARY_NAME := Gopay
 
 build:
 	# Build the Go application

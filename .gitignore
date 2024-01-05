@@ -26,8 +26,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-/client/.env*.local
-/server/.env
+./client/.env*.local
+./server/.env
+./server/./rsa_private_dev.pem
+./server/./rsa_public_dev.pem
 
 # vercel
 .vercel
