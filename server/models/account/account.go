@@ -65,6 +65,7 @@ func CreateAccount(ctx context.Context, account *Account) error {
 	return nil
 }
 
+// TODO generate better account number
 // GenerateAccountNumber generates a unique 10-digit account number.
 func GenerateAccountNumber(ctx context.Context) string {
 	//Generate a UUID
