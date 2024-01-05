@@ -27,10 +27,10 @@ yarn-error.log*
 
 # local env files
 ./client/.env*.local
-./server/./env
+./server/./.env
 ./server/./rsa_private_dev.pem
 ./server/./rsa_public_dev.pem
-.env
+./.env
 # vercel
 .vercel
 
