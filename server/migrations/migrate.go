@@ -51,6 +51,10 @@ func createAdminAccount() (*models.Account, error) {
 	if err != nil {
 		return nil, err
 	}
+	accountNumber, err := strconv.ParseInt(os.Getenv("ADMIN_ACCOUNT_NUMBER"), 10, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	adminBalance, err := strconv.ParseFloat(os.Getenv("ADMIN_ACCOUNT_BALANCE"), 64)
 	if err != nil {
@@ -68,7 +72,7 @@ func createAdminAccount() (*models.Account, error) {
 		RoleID:        1,
 		FirstName:     os.Getenv("ADMIN_FIRSTNAME"),
 		LastName:      os.Getenv("ADMIN_LASTNAME"),
-		AccountNumber: os.Getenv("ADMIN_ACCOUNT_NUMBER"),
+		AccountNumber: accountNumber,
 		Balance:       adminBalance,
 	}
 

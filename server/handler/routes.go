@@ -27,7 +27,7 @@ func (h *Handler) SetupRoutes() {
 	authRoutes := h.router.Group("/api")
 	authRoutes.Use(middleware.AuthUser())
 	{
-
+		authRoutes.GET("/me", h.Me)
 	}
 
 	// Admin routes

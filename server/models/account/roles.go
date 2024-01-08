@@ -7,21 +7,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/Cprime50/Gopay/db"
 	"github.com/Cprime50/Gopay/helper"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
-type RoleRepository struct {
-	DB *gorm.DB
-}
-
-// NewAccountRepository initializes new account repository
-func NewRoleRepository(db *gorm.DB) *RoleRepository {
-	return &RoleRepository{
-		DB: db,
-	}
-}
 
 type Role struct {
 	gorm.Model
@@ -33,7 +23,7 @@ type Role struct {
 }
 
 // Get one role by id
-func (db *RoleRepository) GetRoleById(ctx context.Context, id uint) (*Role, error) {
+func GetRoleById(ctx context.Context, id uint) (*Role, error) {
 	var role *Role
 	if err := db.DB.WithContext(ctx).Where("id = ?", id).First(&role).Error; err != nil {
 		if err != nil {
@@ -49,7 +39,7 @@ func (db *RoleRepository) GetRoleById(ctx context.Context, id uint) (*Role, erro
 }
 
 // Gets all roles
-func (db *RoleRepository) GetAllRoles(ctx context.Context) ([]*Role, error) {
+func GetAllRoles(ctx context.Context) ([]*Role, error) {
 	var roles []*Role
 	if err := db.DB.WithContext(ctx).Find(&roles).Error; err != nil {
 		log.Println("Error quering db", err)
@@ -59,7 +49,7 @@ func (db *RoleRepository) GetAllRoles(ctx context.Context) ([]*Role, error) {
 }
 
 // Assign roles to account
-func (db *RoleRepository) AssignRole(ctx context.Context, accountID uuid.UUID, roleID uint) error {
+func AssignRole(ctx context.Context, accountID uuid.UUID, roleID uint) error {
 	if err := db.DB.WithContext(ctx).Model(&Account{}).Where("id = ?", accountID).Update("role", roleID).Error; err != nil {
 		if err != nil {
 			if errors.Is(gorm.ErrRecordNotFound, err) {
@@ -74,7 +64,7 @@ func (db *RoleRepository) AssignRole(ctx context.Context, accountID uuid.UUID, r
 }
 
 // Get accounts by role
-func (db *RoleRepository) GetAccntByRole(ctx context.Context, roleID uint) (*[]Account, error) {
+func GetAccntByRole(ctx context.Context, roleID uint) (*[]Account, error) {
 	var accounts *[]Account
 	if err := db.DB.WithContext(ctx).Where("role_id = ?", roleID).Find(&accounts).Error; err != nil {
 		if err != nil {

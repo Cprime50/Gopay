@@ -159,14 +159,69 @@ func (h *Handler) Signin(c *gin.Context) {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())
 
 		c.AbortWithStatusJSON(helper.Status(err), gin.H{
-			"message": "Login successful",
-			"user":    account.Email,
+			"message": "Login unsuccessful",
+			"account": account.Email,
 			"error":   err,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"tokens": tokens,
+		"tokens":  tokens,
+		"account": account.Email,
 	})
 }
+
+// Get user
+
+// Get Users
+
+// Update User
+
+// send OTP
+
+// Forgot Password
+
+// To do, fix bug in tokens where admin not generating fresh token
+// Get me
+func (h *Handler) Me(c *gin.Context) {
+	// A *model.User will eventually be added to context in middleware
+	account, exists := c.Get("account")
+
+	// This shouldn't happen, as our middleware ought to throw an error.
+	// This is an extra safety measure
+	// We'll extract this logic later as it will be common to all handler
+	// methods which require a valid user
+	if !exists {
+		log.Printf("Unable to extract user from request context for unknown reason: %v\n", c)
+		err := helper.NewInternal()
+		c.JSON(err.Status(), gin.H{
+			"error": err,
+		})
+
+		return
+	}
+
+	id := account.(*models.Account).ID
+
+	// use the Request Context
+	ctx := c.Request.Context()
+
+	acct, err := models.GetAccountByID(ctx, id)
+
+	if err != nil {
+		log.Printf("Unable to find account: %v\n%v", id, err)
+		e := helper.NewNotFound("account", id.String())
+
+		c.JSON(e.Status(), gin.H{
+			"error": e,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"account": acct,
+	})
+}
+
+// Update Me

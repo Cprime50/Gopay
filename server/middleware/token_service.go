@@ -69,8 +69,8 @@ func ValidateJWT(tokenString string) (*models.Account, error) {
 func ValidateAdminJWT(tokenString string) (*models.Account, error) {
 	claims, err := validateAdminJWT(tokenString) // uses public RSA key
 	if err != nil {
-		log.Printf("Unable to validate or parse idToken - Error: %v\n", err)
-		return nil, helper.NewAuthorization("Unable to verify admin from idToken")
+		log.Printf("Unable to validate Admin or parse Token - Error: %v\n", err)
+		return nil, helper.NewAuthorization("Unable to verify user from idToken")
 	}
 	return claims.Account, nil
 }

@@ -2,11 +2,14 @@ package models
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
+	crypto "crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
+	"math/rand"
+	"time"
 
 	"github.com/Cprime50/Gopay/db"
 	"github.com/Cprime50/Gopay/helper"
@@ -17,9 +20,9 @@ import (
 
 type Account struct {
 	gorm.Model    `json:"-"`
-	ID            uuid.UUID `gorm:"primary_key"`
+	ID            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
 	Email         string    `gorm:"uniqueIndex;not null;type:varchar(250)" json:"email"`
-	AccountNumber string    `gorm:"uniqueIndex;column:account_number;not null"`
+	AccountNumber int64     `gorm:"uniqueIndex;column:account_number;not null"`
 	Balance       float64   `gorm:"type:decimal(10,2)"`
 	FirstName     string    `gorm:"type:varchar(100);not null"`
 	LastName      string    `gorm:"type:varchar(100);not null"`
@@ -48,10 +51,28 @@ func CreateAccount(ctx context.Context, account *Account) error {
 	}
 
 	// Generate account number
-	accountNumber := GenerateAccountNumber(ctx)
+	accountNumber, err := GenerateAccountNumber()
+	if err != nil {
+		log.Printf("Error generating account number: %v\n", err)
+		return helper.NewInternal()
+	}
+
+	//check if account number is unique
+	_err := db.DB.WithContext(ctx).Where("account_number = ?", accountNumber).First(&account).Error
+	for _err == nil {
+		accountNumber, err = GenerateAccountNumber()
+		if err != nil {
+			log.Printf("Error generating account number: %v\n", err)
+			return helper.NewInternal()
+		}
+	}
 
 	// initialize account number
 	newAccount := &Account{
+		Email:         account.Email,
+		FirstName:     account.FirstName,
+		LastName:      account.LastName,
+		Password:      account.Password,
 		AccountNumber: accountNumber,
 		Balance:       500,
 		RoleID:        2,
@@ -67,36 +88,30 @@ func CreateAccount(ctx context.Context, account *Account) error {
 
 // TODO generate better account number
 // GenerateAccountNumber generates a unique 10-digit account number.
-func GenerateAccountNumber(ctx context.Context) string {
-	//Generate a UUID
-	uuid := uuid.New()
+func GenerateAccountNumber() (int64, error) {
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
+	uid, err := uuid.NewRandomFromReader(crypto.Reader)
+	if err != nil {
 
-	//Hash the UUID using MD5
-	hasher := md5.New()
-	hasher.Write([]byte(uuid.String()))
-	hash := hex.EncodeToString(hasher.Sum(nil))
-
-	//Use first 11 digit of hash as account number
-	accountNumber := hash[:11]
-
-	// Check if account number is unique
-	_, err := GetAccountByAccountNum(ctx, accountNumber)
-	if err == nil {
+		return 0, err
 	}
-	// If not unique, regenerate and check again
-	return accountNumber
-
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%d%v", random, uid.String())))
+	hashInt := big.NewInt(0)
+	hashInt.SetBytes(hash[:])
+	accountNumber := hashInt.Mod(hashInt, big.NewInt(1e10)).Int64()
+	return accountNumber, nil
 }
 
 // GetAccountByAccountNum gets a user's account from the database based on the account number
-func GetAccountByAccountNum(ctx context.Context, accountNumber string) (*Account, error) {
+func GetAccountByAccountNum(ctx context.Context, accountNumber int64) (*Account, error) {
 
 	var account Account
 	err := db.DB.WithContext(ctx).Where("account_number = ?", accountNumber).First(&account).Error
 	if err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
-			fmt.Printf("account with ID %s not found", accountNumber)
-			return nil, helper.NewNotFound("account_number", fmt.Sprintf("%s", accountNumber))
+			fmt.Printf("account with ID %d not found", accountNumber)
+			return nil, helper.NewNotFound("account_number", fmt.Sprintf("%d", accountNumber))
 		}
 		log.Println("Error querying account:", err)
 		return nil, helper.NewInternal()
